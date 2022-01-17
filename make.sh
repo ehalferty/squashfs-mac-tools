@@ -1,4 +1,6 @@
 #!/bin/bash
+rm -rf squashfs-tools/unsquashfs
+rm -rf squashfs-tools/mksquashfs
 
 cd squashfs-tools && \
 EXTRA_CFLAGS=-std=gnu89 \

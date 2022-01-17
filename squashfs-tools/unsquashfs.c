@@ -211,15 +211,10 @@ struct queue *queue_init(int size)
 }
 
 
-void queue_put(struct queue *queue, void *data)
-{
+void queue_put(struct queue *queue, void *data) {
 	int nextp;
-
 	pthread_mutex_lock(&queue->mutex);
-
-	while((nextp = (queue->writep + 1) % queue->size) == queue->readp)
-		pthread_cond_wait(&queue->full, &queue->mutex);
-
+	while((nextp = (queue->writep + 1) % queue->size) == queue->readp) { pthread_cond_wait(&queue->full, &queue->mutex); }
 	queue->data[queue->writep] = data;
 	queue->writep = nextp;
 	pthread_cond_signal(&queue->empty);
@@ -942,16 +937,13 @@ void open_init(int count)
 }
 
 
-int open_wait(char *pathname, int flags, mode_t mode)
-{
+int open_wait(char *pathname, int flags, mode_t mode) {
 	if (!open_unlimited) {
 		pthread_mutex_lock(&open_mutex);
-		while (open_count == 0)
-			pthread_cond_wait(&open_empty, &open_mutex);
+		while (open_count == 0) { pthread_cond_wait(&open_empty, &open_mutex); }
 		open_count --;
 		pthread_mutex_unlock(&open_mutex);
 	}
-
 	return open(pathname, flags, mode);
 }
 
@@ -969,12 +961,9 @@ void close_wake(int fd)
 }
 
 
-void queue_file(char *pathname, int file_fd, struct inode *inode)
-{
+void queue_file(char *pathname, int file_fd, struct inode *inode) {
 	struct squashfs_file *file = malloc(sizeof(struct squashfs_file));
-	if(file == NULL)
-		MEM_ERROR();
-
+	if(file == NULL) { MEM_ERROR(); }
 	file->fd = file_fd;
 	file->file_size = inode->data;
 	file->mode = inode->mode;
@@ -1006,74 +995,50 @@ void queue_dir(char *pathname, struct dir *dir)
 }
 
 
-int write_file(struct inode *inode, char *pathname)
-{
+int write_file(struct inode *inode, char *pathname) {
 	unsigned int file_fd, i;
 	unsigned int *block_list = NULL;
 	int file_end = inode->data / block_size;
 	long long start = inode->start;
-
 	TRACE("write_file: regular file, blocks %d\n", inode->blocks);
-
-	file_fd = open_wait(pathname, O_CREAT | O_WRONLY |
-		(force ? O_TRUNC : 0), (mode_t) inode->mode & 0777);
+	file_fd = open_wait(pathname, O_CREAT | O_WRONLY | (force ? O_TRUNC : 0), (mode_t) inode->mode & 0777);
 	if(file_fd == -1) {
 		EXIT_UNSQUASH_IGNORE("write_file: failed to create file %s,"
 			" because %s\n", pathname, strerror(errno));
 		return FALSE;
 	}
-
 	if(inode->blocks) {
 		block_list = malloc(inode->blocks * sizeof(unsigned int));
-		if(block_list == NULL)
-			MEM_ERROR();
-
-		s_ops->read_block_list(block_list, inode->block_start,
-					inode->block_offset, inode->blocks);
+		if(block_list == NULL) { MEM_ERROR(); }
+		s_ops->read_block_list(block_list, inode->block_start, inode->block_offset, inode->blocks);
 	}
-
-	/*
-	 * the writer thread is queued a squashfs_file structure describing the
- 	 * file.  If the file has one or more blocks or a fragment they are
- 	 * queued separately (references to blocks in the cache).
- 	 */
+	// the writer thread is queued a squashfs_file structure describing the file. If the file has one or more
+    // blocks or a fragment they are queued separately (references to blocks in the cache).
 	queue_file(pathname, file_fd, inode);
-
 	for(i = 0; i < inode->blocks; i++) {
 		int c_byte = SQUASHFS_COMPRESSED_SIZE_BLOCK(block_list[i]);
 		struct file_entry *block = malloc(sizeof(struct file_entry));
-
-		if(block == NULL)
-			MEM_ERROR();
-
+		if(block == NULL) {MEM_ERROR();}
 		block->offset = 0;
-		block->size = i == file_end ? inode->data & (block_size - 1) :
-			block_size;
-		if(block_list[i] == 0) /* sparse block */
-			block->buffer = NULL;
+		block->size = i == file_end ? inode->data & (block_size - 1) : block_size;
+		if(block_list[i] == 0) { block->buffer = NULL; } // Sparse block
 		else {
-			block->buffer = cache_get(data_cache, start,
-				block_list[i]);
+			block->buffer = cache_get(data_cache, start, block_list[i]);
 			start += c_byte;
 		}
 		queue_put(to_writer, block);
 	}
-
 	if(inode->frag_bytes) {
 		int size;
 		long long start;
 		struct file_entry *block = malloc(sizeof(struct file_entry));
-
-		if(block == NULL)
-			MEM_ERROR();
-
+		if(block == NULL) { MEM_ERROR();}
 		s_ops->read_fragment(inode->fragment, &start, &size);
 		block->buffer = cache_get(fragment_cache, start, size);
 		block->offset = inode->offset;
 		block->size = inode->frag_bytes;
 		queue_put(to_writer, block);
 	}
-
 	free(block_list);
 	return TRUE;
 }
@@ -1170,7 +1135,6 @@ int create_inode(char *pathname, struct inode *i)
 		case SQUASHFS_LREG_TYPE:
 			TRACE("create_inode: regular file, file_size %lld, "
 				"blocks %d\n", i->data, i->blocks);
-
 			res = write_file(i, pathname);
 			if(res == FALSE)
 				goto failed;
@@ -1225,10 +1189,7 @@ int create_inode(char *pathname, struct inode *i)
 					failed = TRUE;
 				}
 			}
-
-			if(failed)
-				goto failed;
-
+			if(failed) { goto failed; }
 			sym_count ++;
 			break;
 		}
@@ -1236,45 +1197,98 @@ int create_inode(char *pathname, struct inode *i)
 	 	case SQUASHFS_CHRDEV_TYPE:
  		case SQUASHFS_LBLKDEV_TYPE:
 	 	case SQUASHFS_LCHRDEV_TYPE: {
-			int chrdev = 0;
-			unsigned major, minor;
-			if ( i->type == SQUASHFS_CHRDEV_TYPE ||
-					i->type == SQUASHFS_LCHRDEV_TYPE)
-				chrdev = 1;
-
-			TRACE("create_inode: dev, rdev 0x%llx\n", i->data);
-			if(root_process) {
-				if(force)
-					unlink(pathname);
-
-				/* Based on new_decode_dev() in kernel source */
-				major = (i->data & 0xfff00) >> 8;
-				minor = (i->data & 0xff) | ((i->data >> 12)
-								& 0xfff00);
-
-				res = mknod(pathname, chrdev ? S_IFCHR :
-						S_IFBLK, makedev(major, minor));
-				if(res == -1) {
-					EXIT_UNSQUASH_STRICT("create_inode: "
-						"failed to create %s device "
-						"%s, because %s\n", chrdev ?
-						"character" : "block", pathname,
-						strerror(errno));
-					goto failed;
-				}
-				res = set_attributes(pathname, i->mode, i->uid,
-					i->gid, i->time, i->xattr, TRUE);
-				if(res == FALSE)
-					goto failed;
-
-				dev_count ++;
+			int chrdev = (i->type == SQUASHFS_CHRDEV_TYPE || i->type == SQUASHFS_LCHRDEV_TYPE) ? 1 : 0;
+            unsigned major = (i->data & 0xfff00) >> 8;
+            unsigned minor = (i->data & 0xff) | ((i->data >> 12) & 0xfff00);
+			if (chrdev) {
+				printf(
+					"»»»{\"type\":\"chr\",\"path\":\"%s\",\"major\":%u,\"minor\":%u,\"mode\":%d,\"uid\":%d,\"gid\":%d,\"xaddr\":%u}\n",
+					pathname, major, minor, i->mode, i->uid, i->gid, i->xattr);
 			} else {
-				EXIT_UNSQUASH_STRICT("create_inode: could not"
-					" create %s device %s, because you're"
-					" not superuser!\n", chrdev ?
-					"character" : "block", pathname);
-				goto failed;
+				printf(
+					"»»»{\"type\":\"blk\",\"path\":\"%s\",\"major\":%u,\"minor\":%u,\"mode\":%d,\"uid\":%d,\"gid\":%d,\"xaddr\":%u}\n",
+					pathname, major, minor, i->mode, i->uid, i->gid, i->xattr);
 			}
+			fflush(stdout);
+			// sprintf(temp1, "{");
+            // if (chrdev) { strcat(temp1, "\"type\":\"chrdev\","); } else { strcat(temp1, "\"type\":\"blkdev\","); }
+            // strcat(temp1, "\"major\":%ud,", major);
+            // strcat(temp1, "\"minor\":%ud,", minor);
+            // strcat(temp1, "\"mode\":%d,", i->mode);
+            // strcat(temp1, "\"uid\":%ud,", i->uid);
+            // strcat(temp1, "\"gid\":%ud,", i->gid);
+            // strcat(temp1, "\"xattr\":%ud", i->xattr);
+			// strcat(temp1, "}");
+			// printf("%s\n", temp1);
+			// free(temp1);
+            //  printf()
+            //  struct inode *i2 = calloc(1, sizeof(struct inode));
+            //  unsigned int fd2 = open_wait(pathname, O_CREAT | O_WRONLY, (mode_t)0777);
+            //  // phaz
+            // printf("Howdy-ho, my good fellow!\n");
+            // char *pathname2 = calloc(1, strlen(pathname) + 40);
+            // sprintf(pathname2, "./tmp/extracted-squashfs/%s.devdevdev", pathname);
+			// int chrdev = 0;
+			// if (i->type == SQUASHFS_CHRDEV_TYPE || i->type == SQUASHFS_LCHRDEV_TYPE) { chrdev = 1; }
+			// unsigned major, minor;
+            // major = (i->data & 0xfff00) >> 8;
+            // minor = (i->data & 0xff) | ((i->data >> 12)
+            //                 & 0xfff00);
+            // printf(">> %s\n", pathname2);
+            // FILE *fff = fopen(pathname2, "w");
+            // fprintf(f, "TEST\n");
+            // // fprintf(f, "{");
+            // // if (chrdev) { fprintf(f, "\"type\":\"chrdev\","); } else { fprintf(f, "\"type\":\"blkdev\","); }
+            // // fprintf(f, "\"major\":%ud,", major);
+            // // fprintf(f, "\"minor\":%ud,", minor);
+            // // fprintf(f, "\"mode\":%d,", i->mode);
+            // // fprintf(f, "\"uid\":%ud,", i->uid);
+            // // fprintf(f, "\"gid\":%ud,", i->gid);
+            // // fprintf(f, "\"xattr\":%ud", i->xattr);
+            // // fprintf(f, "}");
+            // fclose(fff);
+            // free(pathname2);
+            // printf("Writing dev: %s\n", pathname);
+            // break;
+            // // fsprintf 
+			// 	res = set_attributes(pathname, i->mode, i->uid,
+			// 		i->gid, i->time, i->xattr, TRUE);
+			// //  break;
+			// int chrdev = 0;
+			// unsigned major, minor;
+			// if ( i->type == SQUASHFS_CHRDEV_TYPE ||
+			// 		i->type == SQUASHFS_LCHRDEV_TYPE)
+			// 	chrdev = 1;
+			// TRACE("create_inode: dev, rdev 0x%llx\n", i->data);
+			// if(root_process) {
+			// 	if(force)
+			// 		unlink(pathname);
+			// 	/* Based on new_decode_dev() in kernel source */
+			// 	major = (i->data & 0xfff00) >> 8;
+			// 	minor = (i->data & 0xff) | ((i->data >> 12)
+			// 					& 0xfff00);
+			// 	res = mknod(pathname, chrdev ? S_IFCHR :
+			// 			S_IFBLK, makedev(major, minor));
+			// 	if(res == -1) {
+			// 		EXIT_UNSQUASH_STRICT("create_inode: "
+			// 			"failed to create %s device "
+			// 			"%s, because %s\n", chrdev ?
+			// 			"character" : "block", pathname,
+			// 			strerror(errno));
+			// 		goto failed;
+			// 	}
+			// 	res = set_attributes(pathname, i->mode, i->uid,
+			// 		i->gid, i->time, i->xattr, TRUE);
+			// 	if(res == FALSE)
+			// 		goto failed;
+			// 	dev_count ++;
+			// } else {
+			// 	EXIT_UNSQUASH_STRICT("create_inode: could not"
+			// 		" create %s device %s, because you're"
+			// 		" not superuser!\n", chrdev ?
+			// 		"character" : "block", pathname);
+			// 	goto failed;
+			// }
 			break;
 		}
 		case SQUASHFS_FIFO_TYPE:
@@ -1299,7 +1313,8 @@ int create_inode(char *pathname, struct inode *i)
 			fifo_count ++;
 			break;
 		case SQUASHFS_SOCKET_TYPE:
-		case SQUASHFS_LSOCKET_TYPE:
+		case SQUASHFS_LSOCKET_TYPE: {
+			break;
 			TRACE("create_inode: socket\n");
 
 			res = mknod(pathname, S_IFSOCK, 0);
@@ -1316,6 +1331,7 @@ int create_inode(char *pathname, struct inode *i)
 
 			socket_count++;
 			break;
+		}
 		default:
 			EXIT_UNSQUASH_STRICT("Unknown inode type %d in "
 				"create_inode_table!\n", i->type);

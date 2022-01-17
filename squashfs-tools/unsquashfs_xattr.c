@@ -81,7 +81,7 @@ int write_xattr(char *pathname, unsigned int xattr)
 					 * is rather annoying
 					 */
 					ERROR("write_xattr: failed to write "
-						"xattr %s for file %s because " 
+						"xattr 2 %s for file %s because " 
 						"extended attributes are not "
 						"supported by the destination "
 						"filesystem\n",
@@ -119,7 +119,7 @@ int write_xattr(char *pathname, unsigned int xattr)
 							NOSPACE_MAX);
 				} else
 					EXIT_UNSQUASH_IGNORE("write_xattr: failed to write "
-						"xattr %s for file %s because "
+						"xattr 1 %s for file %s because "
 						"%s\n", xattr_list[i].full_name,
 						pathname, strerror(errno));
 				failed = TRUE;
@@ -132,10 +132,20 @@ int write_xattr(char *pathname, unsigned int xattr)
 			 * messages to avoid possible screenfulls of the
 			 * same error message!
 			 */
-			ERROR("write_xattr: could not write xattr %s "
-					"for file %s because you're not "
-					"superuser!\n",
-					xattr_list[i].full_name, pathname);
+			printf(
+				"»»»{\"type\":\"xat\",\"name\":\"%s\",\"pathname\":%s,\"value\":\"",
+				xattr_list[i].full_name, pathname);
+			for (int ii = 0; ii < xattr_list[i].vsize; ii++) {
+				printf("%02x", ((uint8_t *)xattr_list[i].value)[ii]);
+			}
+			printf("\"}\n");
+				// phaz
+				//xattr_list[i].value, xattr_list[i].vsize
+
+			// ERROR("write_xattr: could not write xattr 3 %s "
+			// 		"for file %s because you're not "
+			// 		"superuser!\n",
+			// 		xattr_list[i].full_name, pathname);
 			EXIT_UNSQUASH_STRICT("write_xattr: to avoid this error message, either"
 				" specify -user-xattrs, -no-xattrs, or run as "
 				"superuser!\n");

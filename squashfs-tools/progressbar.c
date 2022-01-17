@@ -95,66 +95,66 @@ void progress_bar_size(int count)
 
 static void progress_bar(long long current, long long max, int columns)
 {
-	char rotate_list[] = { '|', '/', '-', '\\' };
-	int max_digits, used, hashes, spaces, percentage;
-	static int tty = -1;
+	// char rotate_list[] = { '|', '/', '-', '\\' };
+	// int max_digits, used, hashes, spaces, percentage;
+	// static int tty = -1;
 
-	if(max == 0) {
-		max_digits = 1;
-		used = 13;
-		hashes = 0;
-		spaces = columns - 13;
-		percentage = 100;
-	} else {
-		max_digits = floor(log10(max)) + 1;
-		used = max_digits * 2 + 11;
-		hashes = (current * (columns - used)) / max;
-		spaces = columns - used - hashes;
-		percentage = current * 100 / max;
-	}
+	// if(max == 0) {
+	// 	max_digits = 1;
+	// 	used = 13;
+	// 	hashes = 0;
+	// 	spaces = columns - 13;
+	// 	percentage = 100;
+	// } else {
+	// 	max_digits = floor(log10(max)) + 1;
+	// 	used = max_digits * 2 + 11;
+	// 	hashes = (current * (columns - used)) / max;
+	// 	spaces = columns - used - hashes;
+	// 	percentage = current * 100 / max;
+	// }
 
-	if((current > max) || (columns - used < 0))
-		return;
+	// if((current > max) || (columns - used < 0))
+	// 	return;
 
-	if(tty == -1)
-		tty = isatty(STDOUT_FILENO);
-	if(!tty) {
-		static long long previous = -1;
+	// if(tty == -1)
+	// 	tty = isatty(STDOUT_FILENO);
+	// if(!tty) {
+	// 	static long long previous = -1;
 
-		/* Updating much more frequently than this results in huge
-		 * log files. */
-		if((current % 100) != 0 && current != max)
-			return;
-		/* Don't update just to rotate the spinner. */
-		if(current == previous)
-			return;
-		previous = current;
-	}
+	// 	/* Updating much more frequently than this results in huge
+	// 	 * log files. */
+	// 	if((current % 100) != 0 && current != max)
+	// 		return;
+	// 	/* Don't update just to rotate the spinner. */
+	// 	if(current == previous)
+	// 		return;
+	// 	previous = current;
+	// }
 
-	printf("\r[");
+	// printf("\r[");
 
-	while (hashes --)
-		putchar('=');
+	// while (hashes --)
+	// 	putchar('=');
 
-	putchar(rotate_list[rotate]);
+	// putchar(rotate_list[rotate]);
 
-	while(spaces --)
-		putchar(' ');
+	// while(spaces --)
+	// 	putchar(' ');
 
-	printf("] %*lld/%*lld", max_digits, current, max_digits, max);
-	printf(" %3d%%", percentage);
-	fflush(stdout);
+	// printf("] %*lld/%*lld", max_digits, current, max_digits, max);
+	// printf(" %3d%%", percentage);
+	// fflush(stdout);
 }
 
 
 void enable_progress_bar()
 {
-	pthread_cleanup_push((void *) pthread_mutex_unlock, &progress_mutex);
-	pthread_mutex_lock(&progress_mutex);
-	if(display_progress_bar)
-		progress_bar(cur_uncompressed, estimated_uncompressed, columns);
-	temp_disabled = FALSE;
-	pthread_cleanup_pop(1);
+	// pthread_cleanup_push((void *) pthread_mutex_unlock, &progress_mutex);
+	// pthread_mutex_lock(&progress_mutex);
+	// if(display_progress_bar)
+	// 	progress_bar(cur_uncompressed, estimated_uncompressed, columns);
+	// temp_disabled = FALSE;
+	// pthread_cleanup_pop(1);
 }
 
 
@@ -173,18 +173,18 @@ void disable_progress_bar()
 
 void set_progressbar_state(int state)
 {
-	pthread_cleanup_push((void *) pthread_mutex_unlock, &progress_mutex);
-	pthread_mutex_lock(&progress_mutex);
-	if(display_progress_bar != state) {
-		if(display_progress_bar && !temp_disabled) {
-			progress_bar(cur_uncompressed, estimated_uncompressed,
-				columns);
-			printf("\n");
-			need_nl = FALSE;
-		}
-		display_progress_bar = state;
-	}
-	pthread_cleanup_pop(1);
+	// pthread_cleanup_push((void *) pthread_mutex_unlock, &progress_mutex);
+	// pthread_mutex_lock(&progress_mutex);
+	// if(display_progress_bar != state) {
+	// 	if(display_progress_bar && !temp_disabled) {
+	// 		progress_bar(cur_uncompressed, estimated_uncompressed,
+	// 			columns);
+	// 		printf("\n");
+	// 		need_nl = FALSE;
+	// 	}
+	// 	display_progress_bar = state;
+	// }
+	// pthread_cleanup_pop(1);
 }
 
 
