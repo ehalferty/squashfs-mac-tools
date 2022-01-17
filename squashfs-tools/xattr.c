@@ -121,7 +121,7 @@ static int read_xattrs_from_system(char *filename, struct xattr_list **xattrs)
 	struct xattr_list *xattr_list = NULL;
 
 	while(1) {
-		size = llistxattr(filename, NULL, 0);
+		size = listxattr(filename, NULL, 0, XATTR_NOFOLLOW);
 		if(size <= 0) {
 			if(size < 0 && errno != ENOTSUP) {
 				ERROR_START("llistxattr for %s failed in "
@@ -136,7 +136,7 @@ static int read_xattrs_from_system(char *filename, struct xattr_list **xattrs)
 		if(xattr_names == NULL)
 			MEM_ERROR();
 
-		size = llistxattr(filename, xattr_names, size);
+		size = listxattr(filename, xattr_names, size, XATTR_NOFOLLOW);
 		if(size < 0) {
 			free(xattr_names);
 			if(errno == ERANGE)
@@ -172,8 +172,8 @@ static int read_xattrs_from_system(char *filename, struct xattr_list **xattrs)
 		}
 
 		while(1) {
-			vsize = lgetxattr(filename, xattr_list[i].full_name,
-								NULL, 0);
+			vsize = getxattr(filename, xattr_list[i].full_name,
+								NULL, 0, 0, XATTR_NOFOLLOW);
 			if(vsize < 0) {
 				ERROR_START("lgetxattr failed for %s in "
 					"read_attrs, because %s", filename,
@@ -187,8 +187,8 @@ static int read_xattrs_from_system(char *filename, struct xattr_list **xattrs)
 			if(xattr_list[i].value == NULL)
 				MEM_ERROR();
 
-			vsize = lgetxattr(filename, xattr_list[i].full_name,
-						xattr_list[i].value, vsize);
+			vsize = getxattr(filename, xattr_list[i].full_name,
+						xattr_list[i].value, vsize, 0, XATTR_NOFOLLOW);
 			if(vsize < 0) {
 				free(xattr_list[i].value);
 				if(errno == ERANGE)

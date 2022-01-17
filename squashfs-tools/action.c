@@ -2414,9 +2414,9 @@ static char *get_start(char *s, int n)
 
 static int subpathname_fn(struct atom *atom, struct action_data *action_data)
 {
-	return fnmatch(atom->argv[0], get_start(strdupa(action_data->subpath),
-		count_components(atom->argv[0])),
-		FNM_PATHNAME|FNM_EXTMATCH) == 0;
+	char *duped = calloc(1, strlen(action_data->subpath) + 1);
+	strcpy(duped, action_data->subpath);
+	return fnmatch(atom->argv[0], get_start(duped, count_components(atom->argv[0])), FNM_PATHNAME|FNM_EXTMATCH) == 0;
 }
 
 /*

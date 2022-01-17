@@ -62,8 +62,8 @@ int write_xattr(char *pathname, unsigned int xattr)
 			continue;
 
 		if(root_process || prefix == SQUASHFS_XATTR_USER) {
-			int res = lsetxattr(pathname, xattr_list[i].full_name,
-				xattr_list[i].value, xattr_list[i].vsize, 0);
+			int res = setxattr(pathname, xattr_list[i].full_name,
+				xattr_list[i].value, xattr_list[i].vsize, 0, XATTR_NOFOLLOW);
 
 			if(res == -1) {
 				if(errno == ENOTSUP) {

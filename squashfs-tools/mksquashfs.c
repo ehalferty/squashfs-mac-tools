@@ -35,7 +35,7 @@
 #include <stddef.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/sysmacros.h>
+// #include <sys/sysmacros.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <dirent.h>
@@ -50,11 +50,9 @@
 #include <sys/wait.h>
 #include <limits.h>
 #include <ctype.h>
-#include <sys/sysinfo.h>
-
-#ifndef linux
+// #include <sys/sysinfo.h>
+#include <sys/types.h>
 #include <sys/sysctl.h>
-#endif
 
 #include "squashfs_fs.h"
 #include "squashfs_swap.h"
@@ -5041,7 +5039,7 @@ static void initialise_threads(int readq, int fragq, int bwriteq, int fwriteq,
 		int mib[2];
 		size_t len = sizeof(processors);
 
-		mib[0] = CTL_HW;
+		mib[0] = 6;//CTL_HW;
 #ifdef HW_AVAILCPU
 		mib[1] = HW_AVAILCPU;
 #else
@@ -5747,37 +5745,8 @@ static int parse_mode(char *arg, mode_t *res)
 }
 
 
-static int get_physical_memory()
-{
-	/*
-	 * Long longs are used here because with PAE, a 32-bit
-	 * machine can have more than 4GB of physical memory
-	 *
-	 * sysconf(_SC_PHYS_PAGES) relies on /proc being mounted.
-	 * If it fails use sysinfo, if that fails return 0
-	 */
-	long long num_pages = sysconf(_SC_PHYS_PAGES);
-	long long page_size = sysconf(_SC_PAGESIZE);
-	int phys_mem;
-
-	if(num_pages == -1 || page_size == -1) {
-		struct sysinfo sys;
-		int res = sysinfo(&sys);
-
-		if(res == -1)
-			return 0;
-
-		num_pages = sys.totalram;
-		page_size = sys.mem_unit;
-	}
-
-	phys_mem = num_pages * page_size >> 20;
-
-	if(phys_mem < SQUASHFS_LOWMEM)
-		BAD_ERROR("Mksquashfs requires more physical memory than is "
-			"available!\n");
-
-	return phys_mem;
+static int get_physical_memory() {
+	return SQUASHFS_LOWMEM * 5;
 }
 
 

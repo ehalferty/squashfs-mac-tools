@@ -32,11 +32,15 @@
 #include "stdarg.h"
 #include "fnmatch_compat.h"
 
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/types.h>
+// #include <sys/sysinfo.h>
+// #include <sys/sysmacros.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+
+
+#include <sys/types.h>
+#include <sys/sysctl.h>
+
 #include <limits.h>
 #include <ctype.h>
 
@@ -2716,11 +2720,11 @@ void initialise_threads(int fragment_buffer_size, int data_buffer_size, int cat_
 		int mib[2];
 		size_t len = sizeof(processors);
 
-		mib[0] = CTL_HW;
+		mib[0] = 6;//CTL_HW;
 #ifdef HW_AVAILCPU
 		mib[1] = HW_AVAILCPU;
 #else
-		mib[1] = HW_NCPU;
+		mib[1] = 3;//HW_NCPU;
 #endif
 
 		if(sysctl(mib, 2, &processors, &len, NULL, 0) == -1) {
