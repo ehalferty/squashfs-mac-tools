@@ -1,2 +1,2 @@
-HASH := $Format:%h$
-FULLDATE := $Format:%ci$
+HASH := 0496d7c3
+FULLDATE := 2021-07-22 21:11:24 +0100

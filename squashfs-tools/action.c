@@ -69,6 +69,7 @@ static int other_count = 0;
 static struct action_entry *parsing_action;
 
 static struct file_buffer *def_fragment = NULL;
+static struct file_buffer *tail_fragment = NULL;
 
 static struct token_entry token_table[] = {
 	{ "(", TOK_OPEN_BRACKET, 1, },
@@ -91,8 +92,6 @@ static struct action_entry action_table[];
 static struct expr *parse_expr(int subexp);
 
 extern char *pathname(struct dir_ent *);
-
-extern char *subpathname(struct dir_ent *);
 
 /*
  * Read a file, passing each line to parse_line() for
@@ -984,6 +983,13 @@ static int file_type_match(int st_mode, int type)
 /*
  * General action evaluation code
  */
+int any_actions()
+{
+	return fragment_count + exclude_count + empty_count +
+		move_count + prune_count + other_count;
+}
+
+
 int actions()
 {
 	return other_count;
@@ -1025,7 +1031,7 @@ void eval_actions(struct dir_info *root, struct dir_ent *dir_ent)
 /*
  * Fragment specific action code
  */
-void *eval_frag_actions(struct dir_info *root, struct dir_ent *dir_ent)
+void *eval_frag_actions(struct dir_info *root, struct dir_ent *dir_ent, int tail)
 {
 	int i, match;
 	struct action_data action_data;
@@ -1049,7 +1055,11 @@ void *eval_frag_actions(struct dir_info *root, struct dir_ent *dir_ent)
 
 	free(action_data.pathname);
 	free(action_data.subpath);
-	return &def_fragment;
+
+	if(tail)
+		return &tail_fragment;
+	else
+		return &def_fragment;
 }
 
 
@@ -1061,10 +1071,13 @@ void *get_frag_action(void *fragment)
 	if (fragment == NULL)
 		return &def_fragment;
 
+	if(fragment == &def_fragment)
+		return &tail_fragment;
+
 	if (fragment_count == 0)
 		return NULL;
 
-	if (fragment == &def_fragment)
+	if (fragment == &tail_fragment)
 		action = &fragment_spec[0] - 1;
 	else 
 		action = fragment - offsetof(struct action, data);
@@ -2356,11 +2369,11 @@ static int check_pathname(struct test_entry *test, struct atom *atom)
 
 TEST_FN(name, ACTION_ALL_LNK, \
 	return fnmatch(atom->argv[0], action_data->name,
-				FNM_PATHNAME|FNM_PERIOD|FNM_EXTMATCH) == 0;)
+				FNM_PATHNAME|FNM_EXTMATCH) == 0;)
 
 TEST_FN(pathname, ACTION_ALL_LNK, \
 	return fnmatch(atom->argv[0], action_data->subpath,
-				FNM_PATHNAME|FNM_PERIOD|FNM_EXTMATCH) == 0;)
+				FNM_PATHNAME|FNM_EXTMATCH) == 0;)
 
 
 static int count_components(char *path)
@@ -2403,7 +2416,7 @@ static int subpathname_fn(struct atom *atom, struct action_data *action_data)
 {
 	return fnmatch(atom->argv[0], get_start(strdupa(action_data->subpath),
 		count_components(atom->argv[0])),
-		FNM_PATHNAME|FNM_PERIOD|FNM_EXTMATCH) == 0;
+		FNM_PATHNAME|FNM_EXTMATCH) == 0;
 }
 
 /*
@@ -2456,44 +2469,34 @@ TEST_VAR_RANGE_FN(depth, ACTION_ALL_LNK, action_data->depth)
 
 TEST_VAR_RANGE_FN(dircount, ACTION_DIR, action_data->dir_ent->dir->count)
 
-/*
- * uid specific test code
- */
 TEST_VAR_FN(uid, ACTION_ALL_LNK, action_data->buf->st_uid)
 
-static int parse_uid_arg(struct test_entry *test, struct atom *atom)
+TEST_VAR_FN(gid, ACTION_ALL_LNK, action_data->buf->st_gid)
+
+/*
+ * user specific test code
+ */
+TEST_VAR_FN(user, ACTION_ALL_LNK, action_data->buf->st_uid)
+
+static int parse_user_arg(struct test_entry *test, struct atom *atom)
 {
 	struct test_number_arg *number;
 	long long size;
-	int range;
-	char *error;
+	struct passwd *uid = getpwnam(atom->argv[0]);
 
-	if(parse_number(atom->argv[0], &size, &range, &error)) {
-		/* managed to fully parse argument as a number */
-		if(size < 0 || size > (((long long) 1 << 32) - 1)) {
-			TEST_SYNTAX_ERROR(test, 1, "Numeric uid out of "
-								"range\n");
-			return 0;
-		}
-	} else {
-		/* couldn't parse (fully) as a number, is it a user name? */
-		struct passwd *uid = getpwnam(atom->argv[0]);
-		if(uid) {
-			size = uid->pw_uid;
-			range = NUM_EQ;
-		} else {
-			TEST_SYNTAX_ERROR(test, 1, "Invalid uid or unknown "
-								"user\n");
-			return 0;
-		}
+	if(uid)
+		size = uid->pw_uid;
+	else {
+		TEST_SYNTAX_ERROR(test, 1, "Unknown user\n");
+		return 0;
 	}
 
 	number = malloc(sizeof(*number));
 	if(number == NULL)
 		MEM_ERROR();
 
-	number->range = range;
-	number->size= size;
+	number->range = NUM_EQ;
+	number->size = size;
 
 	atom->data = number;
 
@@ -2502,42 +2505,28 @@ static int parse_uid_arg(struct test_entry *test, struct atom *atom)
 
 
 /*
- * gid specific test code
+ * group specific test code
  */
-TEST_VAR_FN(gid, ACTION_ALL_LNK, action_data->buf->st_gid)
+TEST_VAR_FN(group, ACTION_ALL_LNK, action_data->buf->st_gid)
 
-static int parse_gid_arg(struct test_entry *test, struct atom *atom)
+static int parse_group_arg(struct test_entry *test, struct atom *atom)
 {
 	struct test_number_arg *number;
 	long long size;
-	int range;
-	char *error;
+	struct group *gid = getgrnam(atom->argv[0]);
 
-	if(parse_number(atom->argv[0], &size, &range, &error)) {
-		/* managed to fully parse argument as a number */
-		if(size < 0 || size > (((long long) 1 << 32) - 1)) {
-			TEST_SYNTAX_ERROR(test, 1, "Numeric gid out of "
-								"range\n");
-			return 0;
-		}
-	} else {
-		/* couldn't parse (fully) as a number, is it a group name? */
-		struct group *gid = getgrnam(atom->argv[0]);
-		if(gid) {
-			size = gid->gr_gid;
-			range = NUM_EQ;
-		} else {
-			TEST_SYNTAX_ERROR(test, 1, "Invalid gid or unknown "
-								"group\n");
-			return 0;
-		}
+	if(gid)
+		size = gid->gr_gid;
+	else {
+		TEST_SYNTAX_ERROR(test, 1, "Unknown group\n");
+		return 0;
 	}
 
 	number = malloc(sizeof(*number));
 	if(number == NULL)
 		MEM_ERROR();
 
-	number->range = range;
+	number->range = NUM_EQ;
 	number->size= size;
 
 	atom->data = number;
@@ -3326,8 +3315,10 @@ static struct test_entry test_table[] = {
 	{ "fileblocks", 1, fileblocks_fn, parse_number_arg, 1, 0},
 	{ "dirblocks", 1, dirblocks_fn, parse_number_arg, 1, 0},
 	{ "blocks", 1, blocks_fn, parse_number_arg, 1, 0},
-	{ "gid", 1, gid_fn, parse_gid_arg, 1, 0},
-	{ "uid", 1, uid_fn, parse_uid_arg, 1, 0},
+	{ "gid", 1, gid_fn, parse_number_arg, 1, 0},
+	{ "group", 1, group_fn, parse_group_arg, 1, 0},
+	{ "uid", 1, uid_fn, parse_number_arg, 1, 0},
+	{ "user", 1, user_fn, parse_user_arg, 1, 0},
 	{ "depth", 1, depth_fn, parse_number_arg, 1, 0},
 	{ "dircount", 1, dircount_fn, parse_number_arg, 0, 0},
 	{ "filesize_range", 2, filesize_range_fn, parse_range_args, 1, 0},
@@ -3361,15 +3352,13 @@ static struct action_entry action_table[] = {
 	{ "fragment", FRAGMENT_ACTION, 1, ACTION_REG, NULL, NULL},
 	{ "exclude", EXCLUDE_ACTION, 0, ACTION_ALL_LNK, NULL, NULL},
 	{ "fragments", FRAGMENTS_ACTION, 0, ACTION_REG, NULL, frag_action},
-	{ "no-fragments", NO_FRAGMENTS_ACTION, 0, ACTION_REG, NULL,
-						no_frag_action},
-	{ "always-use-fragments", ALWAYS_FRAGS_ACTION, 0, ACTION_REG, NULL,
-						always_frag_action},
-	{ "dont-always-use-fragments", NO_ALWAYS_FRAGS_ACTION, 0, ACTION_REG,	
-						NULL, no_always_frag_action},
+	{ "no-fragments", NO_FRAGMENTS_ACTION, 0, ACTION_REG, NULL, no_frag_action},
+	{ "always-use-fragments", ALWAYS_FRAGS_ACTION, 0, ACTION_REG, NULL, always_frag_action},
+	{ "dont-always-use-fragments", NO_ALWAYS_FRAGS_ACTION, 0, ACTION_REG,	NULL, no_always_frag_action},
+	{ "tailend", ALWAYS_FRAGS_ACTION, 0, ACTION_REG, NULL, always_frag_action},
+	{ "no-tailend", NO_ALWAYS_FRAGS_ACTION, 0, ACTION_REG,	NULL, no_always_frag_action},
 	{ "compressed", COMPRESSED_ACTION, 0, ACTION_REG, NULL, comp_action},
-	{ "uncompressed", UNCOMPRESSED_ACTION, 0, ACTION_REG, NULL,
-						uncomp_action},
+	{ "uncompressed", UNCOMPRESSED_ACTION, 0, ACTION_REG, NULL, uncomp_action},
 	{ "uid", UID_ACTION, 1, ACTION_ALL_LNK, parse_uid_args, uid_action},
 	{ "gid", GID_ACTION, 1, ACTION_ALL_LNK, parse_gid_args, gid_action},
 	{ "guid", GUID_ACTION, 2, ACTION_ALL_LNK, parse_guid_args, guid_action},

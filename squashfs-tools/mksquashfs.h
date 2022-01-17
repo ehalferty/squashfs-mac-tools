@@ -52,6 +52,7 @@ struct inode_info {
 	struct stat		buf;
 	struct inode_info	*next;
 	struct pseudo_dev	*pseudo;
+	struct tar_file		*tar_file;
 	squashfs_inode		inode;
 	unsigned int		inode_number;
 	unsigned int		nlink;
@@ -63,8 +64,10 @@ struct inode_info {
 	char			always_use_fragments;
 	char			noD;
 	char			noF;
+	char			tarfile;
 	char			symlink[0];
 };
+
 
 /* in memory file info */
 struct file_info {
@@ -73,14 +76,24 @@ struct file_info {
 	long long		start;
 	long long		sparse;
 	unsigned int		*block_list;
-	struct file_info	*next;
+	struct file_info	*frag_next;
+	struct file_info	*block_next;
 	struct fragment		*fragment;
+	struct dup_info		*dup;
 	unsigned int		blocks;
 	unsigned short		checksum;
 	unsigned short		fragment_checksum;
 	char			have_frag_checksum;
 	char			have_checksum;
 };
+
+
+struct dup_info {
+	struct file_info	*file;
+	struct file_info	*frag;
+	struct dup_info		*next;
+};
+
 
 /* fragment block data structures */
 struct fragment {
@@ -206,15 +219,27 @@ extern int block_size;
 extern int block_log;
 extern int sorted;
 extern int noF;
-extern struct file_info *dupl[];
+extern int noD;
+extern int old_exclude;
+extern int no_fragments;
+extern int always_use_fragments;
+extern struct file_info **dupl_frag;
 extern int duplicate_checking;
-extern int read_fs_bytes(int, long long, int, void *);
+extern int no_hardlinks;
+extern struct dir_info *root_dir;
+extern struct pathnames *paths;
+extern int tarfile;
+extern int root_mode_opt;
+extern mode_t root_mode;
+extern struct inode_info *inode_info[INODE_HASH_SIZE];
+
+extern int read_fs_bytes(int, long long, long long, void *);
 extern void add_file(long long, long long, long long, unsigned int *, int,
 	unsigned int, int, int);
 extern struct id *create_id(unsigned int);
 extern unsigned int get_uid(unsigned int);
 extern unsigned int get_guid(unsigned int);
-extern int read_bytes(int, void *, int);
+extern long long read_bytes(int, void *, long long);
 extern unsigned short get_checksum_mem(char *, int);
 extern int reproducible;
 extern void *reader(void *arg);
@@ -224,4 +249,17 @@ extern squashfs_inode create_inode(struct dir_info *dir_info,
 	struct fragment *fragment, struct directory *dir_in, long long sparse);
 extern void free_fragment(struct fragment *fragment);
 extern struct file_info *write_file(struct dir_ent *dir_ent, int *dup);
+extern int excluded(char *name, struct pathnames *paths, struct pathnames **new);
+extern struct dir_ent *lookup_name(struct dir_info *dir, char *name);
+extern struct dir_ent *create_dir_entry(char *name, char *source_name,
+	char *nonstandard_pathname, struct dir_info *dir);
+extern void add_dir_entry(struct dir_ent *dir_ent, struct dir_info *sub_dir,
+	struct inode_info *inode_info);
+extern void free_dir_entry(struct dir_ent *dir_ent);
+extern void free_dir(struct dir_info *dir);
+extern struct dir_info *create_dir(char *pathname, char *subpath, int depth);
+extern char *subpathname(struct dir_ent *dir_ent);
+extern struct dir_info *scan1_opendir(char *pathname, char *subpath, int depth);
+extern squashfs_inode do_directory_scans(struct dir_ent *dir_ent, int progress);
+extern struct inode_info *lookup_inode(struct stat *buf);
 #endif

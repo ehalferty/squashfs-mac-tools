@@ -113,9 +113,9 @@ unsigned char *scan_inode_table(int fd, long long start, long long end,
 	struct squashfs_super_block *sBlk, union squashfs_inode_header
 	*dir_inode, long long *root_inode_block, unsigned int
 	*root_inode_size, long long *uncompressed_file, long long
-	*uncompressed_directory, int *file_count, int *sym_count, int
-	*dev_count, int *dir_count, int *fifo_count, int *sock_count,
-	unsigned int *id_table)
+	*uncompressed_directory, unsigned int *file_count, unsigned int *sym_count,
+	unsigned int *dev_count, unsigned int *dir_count, unsigned int *fifo_count,
+	unsigned int *sock_count, unsigned int *id_table)
 {
 	unsigned char *cur_ptr;
 	unsigned char *inode_table = NULL;
@@ -669,7 +669,7 @@ struct compressor *read_super(int fd, struct squashfs_super_block *sBlk, char *s
 		sBlk->bytes_used / 1024.0, sBlk->bytes_used
 		/ (1024.0 * 1024.0));
 	printf("\tBlock size %d\n", sBlk->block_size);
-	printf("\tNumber of fragments %d\n", sBlk->fragments);
+	printf("\tNumber of fragments %u\n", sBlk->fragments);
 	printf("\tNumber of inodes %d\n", sBlk->inodes);
 	printf("\tNumber of ids %d\n", sBlk->no_ids);
 	TRACE("sBlk->inode_table_start %llx\n", sBlk->inode_table_start);
@@ -691,7 +691,7 @@ failed_mount:
 unsigned char *squashfs_readdir(int fd, int root_entries,
 	unsigned int directory_start_block, int offset, int size,
 	unsigned int *last_directory_block, struct squashfs_super_block *sBlk,
-	void (push_directory_entry)(char *, squashfs_inode, int, int))
+	void (push_directory_entry)(char *, squashfs_inode, unsigned int, int))
 {
 	struct squashfs_dir_header dirh;
 	char buffer[sizeof(struct squashfs_dir_entry) + SQUASHFS_NAME_LEN + 1]
@@ -831,13 +831,14 @@ unsigned int *read_id_table(int fd, struct squashfs_super_block *sBlk)
 
 struct squashfs_fragment_entry *read_fragment_table(int fd, struct squashfs_super_block *sBlk)
 {
-	int res, i;
-	int bytes = SQUASHFS_FRAGMENT_BYTES(sBlk->fragments);
+	int res;
+	unsigned int i;
+	long long bytes = SQUASHFS_FRAGMENT_BYTES(sBlk->fragments);
 	int indexes = SQUASHFS_FRAGMENT_INDEXES(sBlk->fragments);
 	long long fragment_table_index[indexes];
 	struct squashfs_fragment_entry *fragment_table;
 
-	TRACE("read_fragment_table: %d fragments, reading %d fragment indexes "
+	TRACE("read_fragment_table: %u fragments, reading %d fragment indexes "
 		"from 0x%llx\n", sBlk->fragments, indexes,
 		sBlk->fragment_table_start);
 
@@ -934,12 +935,12 @@ long long read_filesystem(char *root_name, int fd, struct squashfs_super_block *
 	char **directory_data_cache, unsigned int *last_directory_block,
 	unsigned int *inode_dir_offset, unsigned int *inode_dir_file_size,
 	unsigned int *root_inode_size, unsigned int *inode_dir_start_block,
-	int *file_count, int *sym_count, int *dev_count, int *dir_count,
-	int *fifo_count, int *sock_count, long long *uncompressed_file,
-	long long *uncompressed_inode, long long *uncompressed_directory,
-	unsigned int *inode_dir_inode_number,
+	unsigned int *file_count, unsigned int *sym_count, unsigned int *dev_count,
+	unsigned int *dir_count, unsigned int *fifo_count, unsigned int *sock_count,
+	long long *uncompressed_file, long long *uncompressed_inode,
+	long long *uncompressed_directory, unsigned int *inode_dir_inode_number,
 	unsigned int *inode_dir_parent_inode,
-	void (push_directory_entry)(char *, squashfs_inode, int, int),
+	void (push_directory_entry)(char *, squashfs_inode, unsigned int, int),
 	struct squashfs_fragment_entry **fragment_table,
 	squashfs_inode **inode_lookup_table)
 {

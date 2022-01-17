@@ -1,3 +1,7 @@
+# Squashfs-tools 4.5 release
+RELEASE_VERSION = 4.5
+RELEASE_DATE = 2021/07/22
+
 ###############################################
 #          Compression build options          #
 ###############################################
@@ -153,7 +157,7 @@ INSTALL_DIR = /usr/local/bin
 
 MKSQUASHFS_OBJS = mksquashfs.o read_fs.o action.o swap.o pseudo.o compressor.o \
 	sort.o progressbar.o info.o restore.o process_fragments.o \
-	caches-queues-lists.o reader.o
+	caches-queues-lists.o reader.o tar.o
 
 UNSQUASHFS_OBJS = unsquashfs.o unsquash-1.o unsquash-2.o unsquash-3.o \
 	unsquash-4.o unsquash-123.o unsquash-34.o unsquash-1234.o swap.o \
@@ -229,7 +233,7 @@ CFLAGS += -DXATTR_SUPPORT -DXATTR_DEFAULT
 else
 CFLAGS += -DXATTR_SUPPORT
 endif
-MKSQUASHFS_OBJS += xattr.o read_xattrs.o
+MKSQUASHFS_OBJS += xattr.o read_xattrs.o tar_xattr.o
 UNSQUASHFS_OBJS += read_xattrs.o unsquashfs_xattr.o
 endif
 
@@ -312,6 +316,7 @@ all: mksquashfs unsquashfs
 
 mksquashfs: $(MKSQUASHFS_OBJS)
 	$(CC) $(LDFLAGS) $(EXTRA_LDFLAGS) $(MKSQUASHFS_OBJS) $(LIBS) -o $@
+	ln -sf mksquashfs sqfstar
 
 mksquashfs.o: Makefile mksquashfs.c squashfs_fs.h squashfs_swap.h mksquashfs.h \
 	sort.h pseudo.h compressor.h xattr.h action.h mksquashfs_error.h progressbar.h \
@@ -350,6 +355,10 @@ process_fragments.o: process_fragments.c process_fragments.h
 
 caches-queues-lists.o: caches-queues-lists.c mksquashfs_error.h caches-queues-lists.h
 
+tar.o: tar.h
+
+tar_xattr.o: tar.h xattr.h
+
 gzip_wrapper.o: gzip_wrapper.c squashfs_fs.h gzip_wrapper.h compressor.h
 
 lzma_wrapper.o: lzma_wrapper.c compressor.h squashfs_fs.h
@@ -364,6 +373,7 @@ xz_wrapper.o: xz_wrapper.c squashfs_fs.h xz_wrapper.h compressor.h
 
 unsquashfs: $(UNSQUASHFS_OBJS)
 	$(CC) $(LDFLAGS) $(EXTRA_LDFLAGS) $(UNSQUASHFS_OBJS) $(LIBS) -o $@
+	ln -sf unsquashfs sqfscat
 
 unsquashfs.o: unsquashfs.h unsquashfs.c squashfs_fs.h squashfs_swap.h \
 	squashfs_compat.h xattr.h read_fs.h compressor.h unsquashfs_error.h
@@ -389,11 +399,12 @@ unsquashfs_info.o: unsquashfs.h squashfs_fs.h unsquashfs_error.h
 
 .PHONY: clean
 clean:
-	-rm -f *.o mksquashfs unsquashfs
+	-rm -f *.o mksquashfs unsquashfs sqfstar sqfscat
 
 .PHONY: install
 install: mksquashfs unsquashfs
 	mkdir -p $(INSTALL_DIR)
 	cp mksquashfs $(INSTALL_DIR)
 	cp unsquashfs $(INSTALL_DIR)
-	ln -s $(INSTALL_DIR)/unsquashfs $(INSTALL_DIR)/sqfscat
+	ln -fs $(INSTALL_DIR)/unsquashfs $(INSTALL_DIR)/sqfscat
+	ln -fs $(INSTALL_DIR)/mksquashfs $(INSTALL_DIR)/sqfstar

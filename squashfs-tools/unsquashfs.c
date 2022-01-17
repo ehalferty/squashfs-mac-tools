@@ -70,8 +70,9 @@ int rotate = 0;
 pthread_mutex_t	screen_mutex;
 pthread_mutex_t pos_mutex = PTHREAD_MUTEX_INITIALIZER;
 int progress = TRUE, progress_enabled = FALSE;
-unsigned int total_blocks = 0, total_files = 0, total_inodes = 0;
-unsigned int cur_blocks = 0;
+unsigned int total_files = 0, total_inodes = 0;
+long long total_blocks = 0;
+long long cur_blocks = 0;
 int inode_number = 1;
 int no_xattrs = XATTR_DEF;
 int user_xattrs = FALSE;
@@ -545,7 +546,7 @@ void print_filename(char *pathname, struct inode *inode)
 
 	user = numeric ? NULL : getpwuid(inode->uid);
 	if(user == NULL) {
-		int res = snprintf(dummy, 12, "%d", inode->uid);
+		int res = snprintf(dummy, 12, "%u", inode->uid);
 		if(res < 0)
 			EXIT_UNSQUASH("snprintf failed in print_filename()\n");
 		else if(res >= 12)
@@ -559,7 +560,7 @@ void print_filename(char *pathname, struct inode *inode)
 		 
 	group = numeric ? NULL : getgrgid(inode->gid);
 	if(group == NULL) {
-		int res = snprintf(dummy2, 12, "%d", inode->gid);
+		int res = snprintf(dummy2, 12, "%u", inode->gid);
 		if(res < 0)
 			EXIT_UNSQUASH("snprintf failed in print_filename()\n");
 		else if(res >= 12)
@@ -3674,7 +3675,7 @@ int generate_pseudo(char *pseudo_file)
 {
 	int i, res;
 
-	writer_fd = open_wait(pseudo_file, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+	writer_fd = open_wait(pseudo_file, O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 	if(writer_fd == -1)
 		EXIT_UNSQUASH("generate_pseudo: failed to create pseudo file %s,"
 			" because %s\n", pseudo_file, strerror(errno));
@@ -3779,8 +3780,8 @@ static void print_options(FILE *stream, char *name)
 	fprintf(stream, "\t-max[-depth] <levels>\tdescend at most <levels> of ");
 	fprintf(stream, "directories when\n\t\t\t\tunsquashing or listing\n");
 	fprintf(stream, "\t-excludes\t\ttreat files on command line as exclude files\n");
-	fprintf(stream, "\t-ex[clude-list]\t\tlist of files/dirs to be excluded, ");
-	fprintf(stream, "terminated with ';'\n");
+	fprintf(stream, "\t-ex[clude-list]\t\tlist of files to be excluded, ");
+	fprintf(stream, "terminated with ;\n");
 	fprintf(stream, "\t-follow[-symlinks]\tfollow symlinks in extract files, and ");
 	fprintf(stream, "add all\n\t\t\t\tfiles/symlinks needed to resolve extract ");
 	fprintf(stream, "file.\n\t\t\t\tImplies -no-wildcards\n");
@@ -3827,8 +3828,9 @@ static void print_options(FILE *stream, char *name)
 	fprintf(stream, "extract.\n\t\t\t\tOne per line\n");
 	fprintf(stream, "\t-exclude-file <file>\tlist of directories or files to ");
 	fprintf(stream, "exclude.\n\t\t\t\tOne per line\n");
-	fprintf(stream, "\t-pseudo-file <file>\toutput a pseudo file equivalent ");
+	fprintf(stream, "\t-pf <file>\t\toutput a pseudo file equivalent ");
 	fprintf(stream, "of the input\n\t\t\t\tSquashfs filesystem\n");
+	fprintf(stream, "\t-pseudo-file <file>\talternative name for -pf\n");
 	fprintf(stream, "\t-e[f] <extract file>\tsynonym for -extract-file\n");
 	fprintf(stream, "\t-exc[f] <exclude file>\tsynonym for -exclude-file\n");
 	fprintf(stream, "\t-da[ta-queue] <size>\tset data queue to <size> Mbytes.  ");
@@ -3845,6 +3847,13 @@ static void print_options(FILE *stream, char *name)
 	fprintf(stream, "\t-h[elp]\t\t\toutput this options text to stdout\n");
 	fprintf(stream, "\nDecompressors available:\n");
 	display_compressors(stream, "", "");
+
+	fprintf(stream, "\nThe README for the Squash-tools 4.5 release, ");
+	fprintf(stream, "describing the new features can be\n");
+	fprintf(stream, "read here https://github.com/plougher/squashfs-tools/blob/master/README-4.5\n");
+
+	fprintf(stream, "\nThe Squashfs-tools USAGE guide can be read here\n");
+	fprintf(stream, "https://github.com/plougher/squashfs-tools/blob/master/USAGE\n");
 }
 
 
@@ -4002,9 +4011,10 @@ int parse_options(int argc, char *argv[])
 		if(strcmp(argv[i], "-help") == 0 || strcmp(argv[i], "-h") == 0) {
 			print_options(stdout, argv[0]);
 			exit(0);
-		} else if(strcmp(argv[i], "-pseudo-file") == 0) {
+		} else if(strcmp(argv[i], "-pseudo-file") == 0 ||
+				strcmp(argv[i], "-pf") == 0) {
 			if(++i == argc) {
-				fprintf(stderr, "%s: -pseudo-file missing filename\n",
+				fprintf(stderr, "%s: -pf missing filename\n",
 					argv[0]);
 				exit(1);
 			}
@@ -4068,12 +4078,24 @@ int parse_options(int argc, char *argv[])
 				strcmp(argv[i], "-no") == 0)
 			no_xattrs = TRUE;
 		else if(strcmp(argv[i], "-xattrs") == 0 ||
-				strcmp(argv[i], "-x") == 0)
-			no_xattrs = FALSE;
-		else if(strcmp(argv[i], "-user-xattrs") == 0 ||
+				strcmp(argv[i], "-x") == 0) {
+			if(xattrs_supported())
+				no_xattrs = FALSE;
+			else {
+				ERROR("%s: xattrs are unsupported in "
+					"this build\n", argv[0]);
+				exit(1);
+			}
+		} else if(strcmp(argv[i], "-user-xattrs") == 0 ||
 				strcmp(argv[i], "-u") == 0) {
-			user_xattrs = TRUE;
-			no_xattrs = FALSE;
+			if(xattrs_supported()) {
+				user_xattrs = TRUE;
+				no_xattrs = FALSE;
+			} else {
+				ERROR("%s: xattrs are unsupported in "
+					"this build\n", argv[0]);
+				exit(1);
+			}
 		} else if(strcmp(argv[i], "-dest") == 0 ||
 				strcmp(argv[i], "-d") == 0) {
 			if(++i == argc) {
@@ -4371,7 +4393,7 @@ int main(int argc, char *argv[])
 			printf("Parallel unsquashfs: Using %d processor%s\n",
 				processors, processors == 1 ? "" : "s");
 
-			printf("%d inodes (%d blocks) to write\n\n",
+			printf("%u inodes (%lld blocks) to write\n\n",
 				total_inodes,
 				total_inodes - total_files + total_blocks);
 		}

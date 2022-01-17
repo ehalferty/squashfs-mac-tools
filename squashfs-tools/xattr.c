@@ -43,6 +43,7 @@
 #include "mksquashfs_error.h"
 #include "progressbar.h"
 #include "pseudo.h"
+#include "tar.h"
 
 /* compressed xattr table */
 static char *xattr_table = NULL;
@@ -81,7 +82,7 @@ extern unsigned int xattr_bytes, total_xattr_bytes;
 /* helper functions from mksquashfs.c */
 extern unsigned short get_checksum(char *, int, unsigned short);
 extern void write_destination(int, long long, long long, void *);
-extern long long generic_write_table(int, void *, int, void *, int);
+extern long long generic_write_table(long long, void *, int, void *, int);
 extern int mangle(char *, char *, int, int, int, int);
 extern char *pathname(struct dir_ent *);
 
@@ -91,7 +92,7 @@ extern struct xattr_list *get_xattr(int, unsigned int *, int *);
 extern struct prefix prefix_table[];
 
 
-static int get_prefix(struct xattr_list *xattr, char *name)
+int xattr_get_prefix(struct xattr_list *xattr, char *name)
 {
 	int i;
 
@@ -160,7 +161,7 @@ static int read_xattrs_from_system(char *filename, struct xattr_list **xattrs)
 			MEM_ERROR();
 		xattr_list = x;
 
-		xattr_list[i].type = get_prefix(&xattr_list[i], p);
+		xattr_list[i].type = xattr_get_prefix(&xattr_list[i], p);
 		p += strlen(p) + 1;
 		if(xattr_list[i].type == -1) {
 			ERROR("Unrecognised xattr prefix %s\n",
@@ -621,7 +622,10 @@ int read_xattrs(void *d)
 	if(no_xattrs || IS_PSEUDO(inode) || inode->root_entry || inode->dummy_root_dir)
 		return SQUASHFS_INVALID_XATTR;
 
-	xattrs = read_xattrs_from_system(filename, &xattr_list);
+	if(IS_TARFILE(inode))
+		xattrs = read_xattrs_from_tarfile(inode, &xattr_list);
+	else
+		xattrs = read_xattrs_from_system(filename, &xattr_list);
 	if(xattrs == 0)
 		return SQUASHFS_INVALID_XATTR;
 

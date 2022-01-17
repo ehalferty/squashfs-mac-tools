@@ -56,7 +56,8 @@ static int read_fragment_table(long long *table_start)
 	 * Max indexes is (2^32*16)/8K or 2^23
 	 * Max length is ((2^32*16)/8K)*8 or 2^26 or 64M
 	 */
-	int res, i;
+	int res;
+	unsigned int i;
 	long long bytes = SQUASHFS_FRAGMENT_BYTES((long long) sBlk.s.fragments);
 	int indexes = SQUASHFS_FRAGMENT_INDEXES((long long) sBlk.s.fragments);
 	int length = SQUASHFS_FRAGMENT_INDEX_BYTES((long long) sBlk.s.fragments);
@@ -71,7 +72,7 @@ static int read_fragment_table(long long *table_start)
 		return FALSE;
 	}
 
-	TRACE("read_fragment_table: %d fragments, reading %d fragment indexes "
+	TRACE("read_fragment_table: %u fragments, reading %d fragment indexes "
 		"from 0x%llx\n", sBlk.s.fragments, indexes,
 		sBlk.s.fragment_table_start);
 
@@ -589,7 +590,7 @@ static int read_filesystem_tables()
 	 * the number of ids can never be more than double the number of inodes
 	 * (the maximum is a unique uid and gid for each inode).
 	 */
-	if(sBlk.s.no_ids > (sBlk.s.inodes * 2L)) {
+	if(sBlk.s.no_ids > (sBlk.s.inodes * 2LL)) {
 		ERROR("read_filesystem_tables: Bad id count in super block\n");
 		goto corrupted;
 	}
@@ -786,15 +787,17 @@ static void squashfs_stat(char *source)
 
 	printf("Duplicates are %sremoved\n", SQUASHFS_DUPLICATES(sBlk.s.flags)
 			? "" : "not ");
-	printf("Number of fragments %d\n", sBlk.s.fragments);
-	printf("Number of inodes %d\n", sBlk.s.inodes);
+	printf("Number of fragments %u\n", sBlk.s.fragments);
+	printf("Number of inodes %u\n", sBlk.s.inodes);
 	printf("Number of ids %d\n", sBlk.s.no_ids);
-	printf("Number of xattr ids %lld\n", xattr_ids);
+
+	if(!SQUASHFS_NO_XATTRS(sBlk.s.flags))
+		printf("Number of xattr ids %lld\n", xattr_ids);
 
 	TRACE("sBlk.s.inode_table_start 0x%llx\n", sBlk.s.inode_table_start);
 	TRACE("sBlk.s.directory_table_start 0x%llx\n", sBlk.s.directory_table_start);
-	TRACE("sBlk.s.fragment_table_start 0x%llx\n\n", sBlk.s.fragment_table_start);
-	TRACE("sBlk.s.lookup_table_start 0x%llx\n\n", sBlk.s.lookup_table_start);
+	TRACE("sBlk.s.fragment_table_start 0x%llx\n", sBlk.s.fragment_table_start);
+	TRACE("sBlk.s.lookup_table_start 0x%llx\n", sBlk.s.lookup_table_start);
 	TRACE("sBlk.s.id_table_start 0x%llx\n", sBlk.s.id_table_start);
 	TRACE("sBlk.s.xattr_id_table_start 0x%llx\n", sBlk.s.xattr_id_table_start);
 }
