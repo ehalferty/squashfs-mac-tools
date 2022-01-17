@@ -32,8 +32,12 @@
 #include "stdarg.h"
 #include "fnmatch_compat.h"
 
+#ifndef linux
+#include <sys/sysctl.h>
+#else
 #include <sys/sysinfo.h>
 #include <sys/sysmacros.h>
+#endif
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -1175,22 +1179,27 @@ int create_inode(char *pathname, struct inode *i)
 			break;
 		case SQUASHFS_SYMLINK_TYPE:
 		case SQUASHFS_LSYMLINK_TYPE: {
-			struct timespec times[2] = {
+			struct timeval times[2] = {
 				{ i->time, 0 },
 				{ i->time, 0 }
 			};
-
 			TRACE("create_inode: symlink, symlink_size %lld\n",
 				i->data);
-
 			if(force)
 				unlink(pathname);
-
 			res = symlink(i->symlink, pathname);
 			if(res == -1) {
-				EXIT_UNSQUASH_STRICT("create_inode: failed to"
-					" create symlink %s, because %s\n",
-					pathname, strerror(errno));
+				EXIT_UNSQUASH_STRICT("create_inode: failed to create symlink "
+					"%s, because %s\n", pathname,
+					strerror(errno));
+				goto failed;
+			}
+
+			res = lutimes(pathname, times);
+			if(res == -1) {
+				EXIT_UNSQUASH_STRICT("create_inode: failed to set time on "
+					"%s, because %s\n", pathname, 
+					strerror(errno));
 				goto failed;
 			}
 
@@ -2683,6 +2692,7 @@ void initialise_threads(int fragment_buffer_size, int data_buffer_size, int cat_
 		sigemptyset(&sigmask);
 		sigaddset(&sigmask, SIGQUIT);
 		sigaddset(&sigmask, SIGHUP);
+		sigaddset(&sigmask, SIGALRM);
 		if(pthread_sigmask(SIG_BLOCK, &sigmask, NULL) != 0)
 			EXIT_UNSQUASH("Failed to set signal mask in initialise_threads\n");
 
